@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>RouteIQ — Smart Delivery Routing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+ 
+:root {
+  /* Core palette — light mode: clean white + electric indigo + vibrant green */
+  --navy:        #F8FAFC;
+  --navy-2:      #FFFFFF;
+  --navy-3:      #F1F5F9;
+  --navy-card:   #EEF2F8;
+  --indigo:      #4F6EF7;
+  --indigo-dk:   #3B55D4;
+  --indigo-lt:   rgba(79,110,247,0.10);
+  --indigo-glow: rgba(79,110,247,0.20);
+  --green:       #10B981;
+  --green-lt:    rgba(16,185,129,0.10);
+  --orange:      #F97316;
+  --red:         #EF4444;
+  --red-lt:      rgba(239,68,68,0.10);
+  --border:      rgba(0,0,0,0.07);
+  --border-mid:  rgba(0,0,0,0.12);
+  --text:        #0F172A;
+  --text-2:      #1E293B;
+  --text-3:      #475569;
+  --text-4:      #94A3B8;
+  --mono:        'JetBrains Mono', monospace;
+  --sans:        'Inter', system-ui, sans-serif;
+  --r:           12px;
+  --r-sm:        8px;
+  --sidebar-w:   360px;
+  --topbar-h:    60px;
+  --shadow-glow: 0 0 0 1px rgba(79,110,247,0.3), 0 4px 24px rgba(79,110,247,0.12);
+  --shadow-card: 0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.05);
+}
+ 
+html, body {
+  height: 100%;
+  background: var(--navy);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+ 
+/* ═══════════════════════════════════════════
+   APP SHELL
+═══════════════════════════════════════════ */
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-rows: var(--topbar-h) 1fr;
+  height: 100vh;
+}
+ 
+/* ═══════════════════════════════════════════
+   TOPBAR
+═══════════════════════════════════════════ */
+.topbar {
+  grid-column: 1 / -1;
+  background: var(--navy-2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 12px;
+  z-index: 500;
+  position: relative;
+}
+/* Subtle gradient line on bottom of topbar */
+.topbar::after {
+  content: '';
+  position: absolute;
+  bottom: -1px; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--indigo), var(--green), transparent);
+  opacity: 0.5;
+}
+ 
+.topbar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: -0.04em;
+  color: var(--text);
+  flex-shrink: 0;
+}
+.logo-mark {
+  width: 34px; height: 34px;
+  background: linear-gradient(135deg, var(--indigo), #7C5CF6);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 12px rgba(79,110,247,0.5);
+  flex-shrink: 0;
+}
+.logo-sub {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  text-transform: uppercase;
+  margin-top: 1px;
+}
+ 
+.topbar-spacer { flex: 1; }
+ 
+.topbar-pill {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--navy-3);
+  border: 1px solid var(--border-mid);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 12px; font-weight: 500; color: var(--text-3);
+}
+.status-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 3px var(--green-lt);
+  animation: breathe 2.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+@keyframes breathe {
+  0%,100% { box-shadow: 0 0 0 2px rgba(34,211,160,0.15); }
+  50%      { box-shadow: 0 0 0 5px rgba(34,211,160,0.08); }
+}
+ 
+/* Reset button */
+.btn-reset {
+  display: flex; align-items: center; gap: 7px;
+  background: var(--red-lt);
+  border: 1px solid rgba(255,77,106,0.25);
+  color: var(--red);
+  border-radius: 8px;
+  padding: 7px 13px;
+  font-size: 12.5px; font-weight: 600;
+  cursor: pointer;
+  transition: background .18s, border-color .18s, transform .1s;
+  white-space: nowrap;
+}
+.btn-reset:hover { background: rgba(255,77,106,0.2); border-color: rgba(255,77,106,0.4); transform: translateY(-1px); }
+.btn-reset:active { transform: translateY(0); }
+ 
+/* ═══════════════════════════════════════════
+   SIDEBAR
+═══════════════════════════════════════════ */
+.sidebar {
+  background: var(--navy-2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  z-index: 100;
+}
+ 
+.sidebar-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  scrollbar-width: thin;
+  scrollbar-color: #CBD5E1 transparent;
+}
+.sidebar-scroll::-webkit-scrollbar { width: 4px; }
+.sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+ 
+/* ── Section label ── */
+.sec-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-4);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 10px;
+}
+ 
+/* ── GPS + Search row ── */
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.search-wrap {
+  position: relative;
+  flex: 1;
+}
+.search-icon {
+  position: absolute; left: 12px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-4);
+  pointer-events: none;
+  flex-shrink: 0;
+}
+.search-input {
+  width: 100%;
+  background: var(--navy-3);
+  border: 1.5px solid var(--border-mid);
+  border-radius: var(--r-sm);
+  padding: 10px 40px 10px 38px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  outline: none;
+  transition: border-color .18s, box-shadow .18s;
+}
+.search-input:focus {
+  border-color: var(--indigo);
+  box-shadow: var(--shadow-glow);
+  background: var(--navy-card);
+}
+.search-input::placeholder { color: var(--text-4); }
+.search-btn {
+  position: absolute; right: 6px; top: 50%;
+  transform: translateY(-50%);
+  background: var(--indigo); border: none;
+  color: #fff; cursor: pointer;
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s;
+}
+.search-btn:hover { background: var(--indigo-dk); }
+ 
+/* GPS Button */
+.btn-gps {
+  width: 40px; height: 40px;
+  background: var(--navy-3);
+  border: 1.5px solid var(--border-mid);
+  border-radius: var(--r-sm);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  color: var(--green);
+  transition: background .18s, border-color .18s, box-shadow .18s, transform .1s;
+  flex-shrink: 0;
+}
+.btn-gps:hover { background: var(--green-lt); border-color: var(--green); box-shadow: 0 0 12px rgba(34,211,160,0.2); transform: translateY(-1px); }
+.btn-gps.locating { animation: gpsPulse 1s ease-in-out infinite; }
+@keyframes gpsPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(34,211,160,0.4); }
+  50%      { box-shadow: 0 0 0 6px rgba(34,211,160,0); }
+}
+ 
+/* Autocomplete */
+.autocomplete-list {
+  background: var(--navy-card);
+  border: 1.5px solid var(--border-mid);
+  border-radius: var(--r);
+  overflow: hidden;
+  max-height: 240px;
+  overflow-y: auto;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.15);
+  scrollbar-width: thin;
+  scrollbar-color: var(--navy-3) transparent;
+}
+.autocomplete-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--text-2);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-start; gap: 9px;
+  transition: background .12s;
+  line-height: 1.45;
+}
+.autocomplete-item:last-child { border-bottom: none; }
+.autocomplete-item:hover { background: var(--indigo-lt); }
+.ac-icon { flex-shrink: 0; margin-top: 1px; color: var(--indigo); }
+ 
+/* ── Info banner ── */
+.info-banner {
+  background: var(--indigo-lt);
+  border: 1px solid rgba(79,110,247,0.2);
+  border-radius: var(--r-sm);
+  padding: 10px 13px;
+  font-size: 12px; color: #A5B4FC; font-weight: 500;
+  display: flex; align-items: flex-start; gap: 9px;
+  line-height: 1.55;
+}
+.info-banner svg { flex-shrink: 0; margin-top: 1px; }
+ 
+/* ── Stop counter strip ── */
+.stop-counter {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.stop-counter-track {
+  height: 4px; flex: 1; margin: 0 10px;
+  background: var(--navy-3);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.stop-counter-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--indigo), var(--green));
+  border-radius: 4px;
+  transition: width .4s cubic-bezier(.4,0,.2,1);
+}
+.stop-counter-num {
+  font-family: var(--mono);
+  font-size: 11px; font-weight: 600; color: var(--text-3);
+}
+ 
+/* ── Stop list ── */
+.stop-list { display: flex; flex-direction: column; gap: 6px; }
+ 
+.stop-item {
+  background: var(--navy-3);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 10px 10px 10px 12px;
+  display: flex; align-items: center; gap: 10px;
+  transition: border-color .18s, box-shadow .18s, background .18s;
+  animation: fadeUp .2s ease both;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.stop-item:hover { border-color: var(--indigo); background: var(--navy-card); box-shadow: 0 0 0 3px var(--indigo-lt); }
+ 
+.stop-badge {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  flex-shrink: 0;
+}
+.badge-depot { background: linear-gradient(135deg, var(--indigo), #7C5CF6); color: #fff; box-shadow: 0 2px 8px rgba(79,110,247,0.4); }
+.badge-stop  { background: var(--navy-2); border: 1.5px solid var(--border-mid); color: var(--text-3); }
+ 
+.stop-info { flex: 1; min-width: 0; }
+.stop-name { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stop-coords { font-family: var(--mono); font-size: 10px; color: var(--text-4); margin-top: 2px; }
+ 
+.stop-remove {
+  background: none; border: none; color: var(--text-4); cursor: pointer;
+  width: 26px; height: 26px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  transition: color .15s, background .15s; flex-shrink: 0;
+}
+.stop-remove:hover { color: var(--red); background: var(--red-lt); }
+ 
+/* ── Empty state ── */
+.empty-state {
+  background: var(--navy-3);
+  border: 1.5px dashed var(--border-mid);
+  border-radius: var(--r);
+  padding: 24px 16px;
+  text-align: center; color: var(--text-4);
+  font-size: 12.5px; line-height: 1.7;
+}
+.empty-icon { font-size: 28px; margin-bottom: 8px; }
+ 
+/* ── Action buttons ── */
+.btn-primary {
+  width: 100%;
+  background: linear-gradient(135deg, var(--indigo) 0%, #7C5CF6 100%);
+  color: #fff; border: none;
+  border-radius: var(--r-sm);
+  padding: 13px 18px;
+  font-family: var(--sans); font-size: 14px; font-weight: 600;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: opacity .18s, box-shadow .18s, transform .1s;
+  box-shadow: 0 4px 20px rgba(79,110,247,0.4);
+  letter-spacing: -0.01em;
+}
+.btn-primary:hover:not(:disabled) { opacity: 0.9; box-shadow: 0 6px 28px rgba(79,110,247,0.55); transform: translateY(-1px); }
+.btn-primary:active:not(:disabled) { transform: translateY(0); }
+.btn-primary:disabled { background: var(--navy-3); color: var(--text-4); cursor: not-allowed; box-shadow: none; }
+ 
+.btn-secondary {
+  width: 100%;
+  background: var(--navy-3); color: var(--text-3);
+  border: 1.5px solid var(--border-mid);
+  border-radius: var(--r-sm); padding: 10px 18px;
+  font-family: var(--sans); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: border-color .18s, color .18s, background .18s;
+}
+.btn-secondary:hover { border-color: var(--red); color: var(--red); background: var(--red-lt); }
+ 
+/* ── Sidebar footer stats ── */
+.sidebar-footer {
+  padding: 14px 18px;
+  border-top: 1px solid var(--border);
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+.footer-stat {
+  background: var(--navy-3);
+  border-radius: var(--r-sm);
+  padding: 9px 8px;
+  text-align: center;
+}
+.footer-stat-val { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--indigo); }
+.footer-stat-lbl { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-4); margin-top: 2px; }
+ 
+/* ═══════════════════════════════════════════
+   MAP AREA
+═══════════════════════════════════════════ */
+#map-area {
+  position: relative;
+  overflow: hidden;
+  background: var(--navy);
+  transition: all .45s cubic-bezier(.4,0,.2,1);
+}
+#map { height: 100%; width: 100%; }
+.leaflet-container { background: #E8EDF2; }
+ 
+/* ═══════════════════════════════════════════
+   LOADING OVERLAY
+═══════════════════════════════════════════ */
+#loadingOverlay {
+  position: absolute; inset: 0;
+  background: rgba(248,250,252,0.94);
+  backdrop-filter: blur(6px);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  z-index: 9000;
+}
+#loadingOverlay.active { display: flex; }
+ 
+.loading-icon {
+  width: 64px; height: 64px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--indigo), #7C5CF6);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 32px rgba(79,110,247,0.5);
+  animation: loadingBob 1.2s ease-in-out infinite;
+}
+@keyframes loadingBob {
+  0%,100% { transform: translateY(0) scale(1); box-shadow: 0 0 32px rgba(79,110,247,0.5); }
+  50%      { transform: translateY(-6px) scale(1.04); box-shadow: 0 12px 40px rgba(79,110,247,0.7); }
+}
+ 
+.loading-text-wrap { text-align: center; }
+.loading-headline {
+  font-size: 18px; font-weight: 700; color: var(--text);
+  letter-spacing: -0.03em; margin-bottom: 6px;
+}
+.loading-sub { font-size: 13px; color: var(--text-3); font-weight: 400; }
+ 
+/* Loading progress bar */
+.loading-bar-wrap {
+  width: 320px; max-width: 90vw;
+}
+.loading-bar-track {
+  height: 4px; background: var(--navy-3); border-radius: 4px; overflow: hidden;
+}
+.loading-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--indigo), var(--green));
+  border-radius: 4px;
+  width: 0%;
+  transition: width .4s ease;
+}
+/* Shimmer when indeterminate */
+.loading-bar-fill.shimmer {
+  width: 100%;
+  background: linear-gradient(90deg, var(--indigo), var(--green), var(--indigo));
+  background-size: 200% 100%;
+  animation: barShimmer 1.2s linear infinite;
+}
+@keyframes barShimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+ 
+.loading-steps {
+  display: flex; flex-direction: column; gap: 8px;
+  width: 320px; max-width: 90vw;
+}
+.loading-step {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12.5px; color: var(--text-4); font-weight: 500;
+  transition: color .25s;
+}
+.loading-step.active { color: var(--text-2); }
+.loading-step.done { color: var(--green); }
+.step-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  background: var(--navy-3); border: 1.5px solid var(--border-mid);
+  transition: background .25s, border-color .25s;
+}
+.loading-step.active .step-dot { background: var(--indigo); border-color: var(--indigo); animation: stepPulse 1s ease-in-out infinite; }
+.loading-step.done .step-dot { background: var(--green); border-color: var(--green); }
+@keyframes stepPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(79,110,247,0.4); }
+  50%      { box-shadow: 0 0 0 4px rgba(79,110,247,0); }
+}
+ 
+/* ═══════════════════════════════════════════
+   RESULT SCREEN (full-area overlay)
+═══════════════════════════════════════════ */
+#resultScreen {
+  position: absolute; inset: 0;
+  background: var(--navy-2);
+  display: none;
+  flex-direction: column;
+  z-index: 8000;
+  overflow: hidden;
+}
+#resultScreen.active { display: flex; }
+ 
+/* Result topbar */
+.result-bar {
+  display: flex; align-items: center;
+  padding: 14px 20px; gap: 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.result-bar-title {
+  font-size: 15px; font-weight: 700; color: var(--text); flex: 1;
+  letter-spacing: -0.02em;
+}
+.result-bar-sub { font-size: 12px; color: var(--text-3); font-weight: 400; margin-top: 1px; }
+ 
+.btn-map-toggle {
+  display: flex; align-items: center; gap: 7px;
+  background: var(--navy-3); border: 1.5px solid var(--border-mid);
+  color: var(--text-2); border-radius: 8px; padding: 7px 12px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: all .2s; white-space: nowrap; flex-shrink: 0;
+}
+.btn-map-toggle:hover { border-color: var(--indigo); color: var(--indigo); background: var(--indigo-lt); }
+ 
+/* Result body: stats + manifest + mini-map */
+.result-body {
+  flex: 1; display: flex; overflow: hidden;
+}
+ 
+/* Stats + manifest column */
+.result-col {
+  width: 400px; flex-shrink: 0;
+  overflow-y: auto; padding: 20px;
+  display: flex; flex-direction: column; gap: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: #CBD5E1 transparent;
+}
+@media (max-width: 900px) {
+  .result-col { width: 100%; }
+}
+ 
+/* Big stat cards */
+.result-stats-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.result-stat-card {
+  background: var(--navy-3); border: 1px solid var(--border-mid);
+  border-radius: var(--r); padding: 16px;
+  display: flex; flex-direction: column; gap: 4px;
+  position: relative; overflow: hidden;
+}
+.result-stat-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+}
+.stat-card-dist::before { background: linear-gradient(90deg, var(--indigo), #7C5CF6); }
+.stat-card-time::before { background: linear-gradient(90deg, var(--green), #22D3A0); }
+.stat-card-stops::before { background: linear-gradient(90deg, var(--orange), #FFBA42); }
+.stat-card-speed::before { background: linear-gradient(90deg, var(--red), #FF8C42); }
+ 
+.stat-card-val {
+  font-family: var(--mono); font-size: 28px; font-weight: 600;
+  letter-spacing: -0.04em; color: var(--text);
+  line-height: 1.1;
+}
+.stat-card-unit { font-size: 11px; color: var(--text-3); font-weight: 500; margin-left: 2px; }
+.stat-card-lbl { font-size: 11px; font-weight: 600; color: var(--text-4); text-transform: uppercase; letter-spacing: 0.07em; margin-top: 2px; }
+ 
+/* Success banner */
+.success-banner {
+  background: var(--green-lt); border: 1px solid rgba(34,211,160,0.25);
+  border-radius: var(--r-sm); padding: 11px 14px;
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; font-weight: 600; color: var(--green);
+}
+ 
+/* Route manifest */
+.manifest-card {
+  background: var(--navy-3); border: 1px solid var(--border-mid);
+  border-radius: var(--r); overflow: hidden;
+}
+.manifest-header {
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-4);
+}
+.manifest-stops { padding: 4px 16px 12px; }
+ 
+.manifest-stop {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 10px 0; position: relative;
+}
+.manifest-stop:not(:last-child)::after {
+  content: '';
+  position: absolute; left: 11px; top: 30px;
+  width: 2px; height: calc(100% - 14px);
+  background: linear-gradient(to bottom, var(--indigo), var(--border));
+  border-radius: 2px;
+}
+.m-num {
+  width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 9px; font-weight: 700;
+  z-index: 1; position: relative;
+}
+.m-depot { background: linear-gradient(135deg, var(--indigo), #7C5CF6); color: #fff; }
+.m-stop  { background: var(--navy-2); border: 2px solid var(--indigo); color: var(--indigo); }
+.m-last  { background: var(--green); color: #fff; }
+ 
+.m-info { flex: 1; padding-bottom: 2px; }
+.m-name { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.3; }
+.m-pills { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+.m-pill {
+  background: var(--navy-2); border: 1px solid var(--border-mid);
+  border-radius: 20px; padding: 2px 8px;
+  font-family: var(--mono); font-size: 10px; color: var(--text-3);
+}
+ 
+/* Mini-map / expandable */
+.result-map-col {
+  flex: 1; position: relative;
+  display: flex; flex-direction: column;
+  border-left: 1px solid var(--border);
+  overflow: hidden;
+  transition: width .4s cubic-bezier(.4,0,.2,1);
+}
+.result-map-col.collapsed {
+  width: 0; border: none; overflow: hidden;
+}
+#resultMap { flex: 1; min-height: 0; }
+ 
+/* Arrow toggle */
+.map-arrow-btn {
+  position: absolute; left: -16px; top: 50%;
+  transform: translateY(-50%);
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--indigo); color: #fff;
+  border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 12px rgba(79,110,247,0.5);
+  z-index: 10;
+  transition: background .18s;
+}
+.map-arrow-btn:hover { background: var(--indigo-dk); }
+.map-arrow-btn svg { transition: transform .35s ease; }
+.map-arrow-btn.collapsed svg { transform: scaleX(-1); }
+ 
+/* ═══════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════ */
+.toast-wrap {
+  position: fixed; bottom: 24px; right: 24px; z-index: 99999;
+  display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+}
+.toast {
+  background: var(--navy-card); border: 1.5px solid var(--border-mid);
+  border-radius: 10px; padding: 11px 16px;
+  font-size: 13px; font-weight: 500; color: var(--text-2);
+  display: flex; align-items: center; gap: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  animation: toastIn .22s ease;
+  max-width: 320px;
+}
+.toast.success { border-color: rgba(34,211,160,0.3); }
+.toast.success .t-icon { background: var(--green-lt); color: var(--green); }
+.toast.error   { border-color: rgba(255,77,106,0.3); }
+.toast.error .t-icon   { background: var(--red-lt); color: var(--red); }
+.t-icon {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; flex-shrink: 0;
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+ 
+/* ═══════════════════════════════════════════
+   MAP CUSTOMISATION
+═══════════════════════════════════════════ */
+.leaflet-bar a {
+  background-color: #FFFFFF !important;
+  color: var(--text-2) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+.leaflet-bar a:hover { background-color: var(--navy-3) !important; }
+.leaflet-bar { border: 1px solid var(--border-mid) !important; box-shadow: 0 4px 20px rgba(0,0,0,0.1) !important; }
+ 
+.custom-map-btns a { font-size: 15px; }
+ 
+/* ═══════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════ */
+@media (max-width: 768px) {
+  :root { --sidebar-w: 100%; --topbar-h: 56px; }
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: var(--topbar-h) 1fr;
+    height: auto; min-height: 100vh;
+  }
+  .sidebar {
+    max-height: 55vh;
+    overflow-y: auto;
+  }
+  #map-area {
+    height: 45vh;
+  }
+  html, body { overflow: auto; }
+  .topbar-pill { display: none; }
+  .logo-sub { display: none; }
+  .result-col { width: 100%; }
+  .result-map-col { display: none; }
+  .result-stats-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 420px) {
+  .topbar-logo span.app-name { display: none; }
+  .btn-reset span { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+ 
+  <!-- ══════════ TOPBAR ══════════ -->
+  <header class="topbar">
+    <div class="topbar-logo">
+      <div class="logo-mark">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name" style="line-height:1.15;">RouteIQ</div>
+        <div class="logo-sub">Smart Delivery Routing</div>
+      </div>
+    </div>
+ 
+    <div class="topbar-spacer"></div>
+ 
+    <div class="topbar-pill">
+      <span class="status-dot"></span>
+      <span id="topbarStatus">Ready to plan</span>
+    </div>
+ 
+    <button class="btn-reset" onclick="resetAll()" title="Reset everything">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.32"/>
+      </svg>
+      <span>Reset</span>
+    </button>
+  </header>
+ 
+  <!-- ══════════ SIDEBAR ══════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-scroll">
+ 
+      <!-- Search + GPS -->
+      <div>
+        <div class="sec-label">Search Address</div>
+        <div class="search-row">
+          <div class="search-wrap">
+            <span class="search-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            </span>
+            <input id="searchInput" class="search-input" type="text"
+              placeholder="City, address, landmark…" autocomplete="off"/>
+            <button class="search-btn" onclick="searchAddress()" title="Search">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </button>
+          </div>
+          <button class="btn-gps" id="gpsBtn" onclick="fetchGPS()" title="Use my location">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="9" opacity="0.3"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+ 
+      <!-- Info hint -->
+      <div class="info-banner" id="hintBanner">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#818CF8" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <span>First pin = <strong>Depot</strong> (start point). Add up to 12 stops by clicking the map or searching.</span>
+      </div>
+ 
+      <!-- Stops section -->
+      <div>
+        <div class="stop-counter">
+          <div class="sec-label" style="margin-bottom:0;">Stops</div>
+          <div class="stop-counter-track">
+            <div class="stop-counter-fill" id="stopFill" style="width:0%"></div>
+          </div>
+          <div class="stop-counter-num"><span id="stopCount">0</span> / 12</div>
+        </div>
+        <div style="height:10px;"></div>
+        <div id="stopList" class="stop-list">
+          <div class="empty-state">
+            <div class="empty-icon">📍</div>
+            No stops yet.<br>Click the map or search an address to begin.
+          </div>
+        </div>
+      </div>
+ 
+      <!-- Actions -->
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <button id="routeBtn" class="btn-primary" onclick="calculateRoute()" disabled>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+          </svg>
+          Calculate Optimal Route
+        </button>
+        <button class="btn-secondary" onclick="clearStops()">Clear All Stops</button>
+      </div>
+ 
+    </div>
+ 
+    <!-- Footer stats -->
+    <div class="sidebar-footer">
+      <div class="footer-stat">
+        <div class="footer-stat-val" id="footerStops">0</div>
+        <div class="footer-stat-lbl">Stops</div>
+      </div>
+      <div class="footer-stat">
+        <div class="footer-stat-val" id="footerDist">—</div>
+        <div class="footer-stat-lbl">km</div>
+      </div>
+      <div class="footer-stat">
+        <div class="footer-stat-val" id="footerTime">—</div>
+        <div class="footer-stat-lbl">ETA</div>
+      </div>
+    </div>
+  </aside>
+ 
+  <!-- ══════════ MAP AREA ══════════ -->
+  <div id="map-area">
+    <div id="map"></div>
+ 
+    <!-- Loading overlay -->
+    <div id="loadingOverlay">
+      <div class="loading-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+        </svg>
+      </div>
+      <div class="loading-text-wrap">
+        <div class="loading-headline">Optimising Route…</div>
+        <div class="loading-sub" id="loadingSubText">Fetching road distances</div>
+      </div>
+      <div class="loading-bar-wrap">
+        <div class="loading-bar-track">
+          <div class="loading-bar-fill shimmer" id="loadingBarFill"></div>
+        </div>
+      </div>
+      <div class="loading-steps">
+        <div class="loading-step" id="step1"><span class="step-dot"></span>Geocoding stop locations</div>
+        <div class="loading-step" id="step2"><span class="step-dot"></span>Fetching road distances (OSRM)</div>
+        <div class="loading-step" id="step3"><span class="step-dot"></span>Running Dijkstra's algorithm</div>
+        <div class="loading-step" id="step4"><span class="step-dot"></span>Optimising stop order (TSP)</div>
+        <div class="loading-step" id="step5"><span class="step-dot"></span>Building route polylines</div>
+      </div>
+    </div>
+ 
+    <!-- Result screen -->
+    <div id="resultScreen">
+      <!-- Result top-bar -->
+      <div class="result-bar">
+        <div>
+          <div class="result-bar-title">🎯 Optimal Route Found</div>
+          <div class="result-bar-sub" id="resultBarSub">Route calculated successfully</div>
+        </div>
+        <button class="btn-map-toggle" id="mapToggleBtn" onclick="toggleResultMap()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          Show Map
+        </button>
+        <button class="btn-map-toggle" onclick="closeResults()" style="border-color:rgba(255,77,106,0.3);color:var(--red);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          Close
+        </button>
+      </div>
+ 
+      <!-- Result body -->
+      <div class="result-body">
+        <!-- Stats + manifest -->
+        <div class="result-col" id="resultCol">
+          <!-- Populated by JS -->
+        </div>
+        <!-- Mini-map -->
+        <div class="result-map-col collapsed" id="resultMapCol">
+          <button class="map-arrow-btn collapsed" id="mapArrowBtn" onclick="toggleResultMap()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <div id="resultMap"></div>
+        </div>
+      </div>
+    </div>
+ 
+  </div><!-- /map-area -->
+</div><!-- /app -->
+ 
+<!-- Autocomplete -->
+<div id="autocompleteList" class="autocomplete-list" style="display:none;position:fixed;z-index:99999;"></div>
+<div class="toast-wrap" id="toastWrap"></div>
+ 
+<!-- Leaflet tooltip style -->
+<style>
+.lft-tt { background: #FFFFFF !important; border: 1.5px solid rgba(0,0,0,0.1) !important; color: #1E293B !important; font-family: Inter,sans-serif; font-size: 12px; padding: 7px 11px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.12); }
+.lft-tt::before { display: none !important; }
+</style>
+ 
+<script>
+const API = "http://localhost:8000";
+ 
+let stops = [], markers = [], routeLayers = [], map, resultMap, resultMapInitialised = false;
+let mapVisible = false;
+ 
+const SEG_COLORS = ['#4F6EF7','#22D3A0','#FF8C42','#FF4D6A','#A78BFA','#34D399','#F472B6','#60A5FA','#FBBF24','#818CF8'];
+ 
+// ═══════════════════════════════════════════
+//  MAP INIT
+// ═══════════════════════════════════════════
+function initMap() {
+  map = L.map('map', { zoomControl: false }).setView([20.5937, 78.9629], 5);
+  applyDarkTiles(map);
+ 
+  const customUI = L.control({ position: 'bottomright' });
+  customUI.onAdd = function() {
+    const div = L.DomUtil.create('div', 'leaflet-bar custom-map-btns');
+    div.innerHTML = `<a href="#" id="compassBtn" title="Fit stops">🎯</a><a href="#" id="earthBtn" title="India view">🌏</a>`;
+    L.DomEvent.disableClickPropagation(div);
+    return div;
+  };
+  customUI.addTo(map);
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+ 
+  map.on('click', (e) => addStop(e.latlng.lat, e.latlng.lng, ''));
+ 
+  document.getElementById('earthBtn').addEventListener('click', (e) => {
+    e.preventDefault();
+    map.flyTo([20.5937, 78.9629], 5, { duration: 1.2 });
+  });
+  document.getElementById('compassBtn').addEventListener('click', (e) => {
+    e.preventDefault();
+    if (markers.length > 0) {
+      map.flyToBounds(L.featureGroup(markers).getBounds(), { padding: [50,50], duration:1.0 });
+    }
+  });
+}
+ 
+function applyDarkTiles(m) {
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap © Carto', maxZoom: 19,
+  }).addTo(m);
+}
+ 
+function initResultMap() {
+  if (resultMapInitialised) return;
+  resultMap = L.map('resultMap', { zoomControl: false }).setView([20.5937, 78.9629], 5);
+  applyDarkTiles(resultMap);
+  L.control.zoom({ position: 'bottomright' }).addTo(resultMap);
+  resultMapInitialised = true;
+}
+ 
+// ═══════════════════════════════════════════
+//  MARKER
+// ═══════════════════════════════════════════
+function makeIcon(label, isDepot) {
+  const bg   = isDepot ? '#4F6EF7' : '#FFFFFF';
+  const fg   = isDepot ? '#FFFFFF' : '#1E293B';
+  const ring = isDepot ? '#3B55D4' : '#4F6EF7';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="44" viewBox="0 0 34 44">
+    <defs><filter id="ds${label}"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="rgba(0,0,0,0.5)"/></filter></defs>
+    <path d="M17 2C10.37 2 5 7.37 5 14c0 10.5 12 28 12 28S29 24.5 29 14C29 7.37 23.63 2 17 2z"
+      fill="${bg}" stroke="${ring}" stroke-width="2" filter="url(#ds${label})"/>
+    <text x="17" y="19" text-anchor="middle" font-size="${String(label).length>1?9:11}"
+      font-weight="700" font-family="JetBrains Mono,monospace" fill="${fg}">${label}</text>
+  </svg>`;
+  return L.divIcon({ html: svg, iconSize:[34,44], iconAnchor:[17,44], popupAnchor:[0,-46], className:'' });
+}
+ 
+// ═══════════════════════════════════════════
+//  STOPS
+// ═══════════════════════════════════════════
+function addStop(lat, lng, label) {
+  if (stops.length >= 12) { toast('Maximum 12 stops reached.', 'error'); return; }
+  const idx = stops.length;
+  const isDepot = idx === 0;
+  const stopLabel = label || (isDepot ? 'Depot' : `Stop ${idx}`);
+  stops.push({ lat, lng, label: stopLabel });
+  const marker = L.marker([lat, lng], { icon: makeIcon(isDepot ? 'D' : idx, isDepot) })
+    .addTo(map)
+    .bindPopup(`<div style="font-family:Inter,sans-serif;min-width:160px;background:#FFFFFF;color:#1E293B;padding:4px 0;">
+      <div style="font-weight:600;font-size:13px;color:#0F172A;margin-bottom:4px;">${escHtml(stopLabel)}</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#94A3B8;">${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
+    </div>`, { className:'dark-popup' });
+  markers.push(marker);
+  renderStopList();
+  updateUI();
+  clearResults();
+  if (isDepot) toast('📍 Depot set — now add delivery stops.', 'success');
+}
+ 
+function removeStop(idx) {
+  stops.splice(idx, 1);
+  if (markers[idx]) { map.removeLayer(markers[idx]); markers.splice(idx, 1); }
+  markers.forEach((m, i) => m.setIcon(makeIcon(i === 0 ? 'D' : i, i === 0)));
+  renderStopList(); updateUI(); clearResults(); clearRouteLayers();
+}
+ 
+// ═══════════════════════════════════════════
+//  RENDER STOP LIST
+// ═══════════════════════════════════════════
+function renderStopList() {
+  const el = document.getElementById('stopList');
+  const n = stops.length;
+  document.getElementById('stopCount').textContent = n;
+  document.getElementById('footerStops').textContent = n;
+  document.getElementById('stopFill').style.width = `${(n/12)*100}%`;
+ 
+  if (n === 0) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">📍</div>No stops yet.<br>Click the map or search to begin.</div>`;
+    return;
+  }
+  el.innerHTML = stops.map((s, i) => {
+    const isDepot = i === 0;
+    return `<div class="stop-item">
+      <span class="stop-badge ${isDepot?'badge-depot':'badge-stop'}">${isDepot?'D':i}</span>
+      <div class="stop-info">
+        <div class="stop-name">${escHtml(s.label)}</div>
+        <div class="stop-coords">${s.lat.toFixed(4)}, ${s.lng.toFixed(4)}</div>
+      </div>
+      <button class="stop-remove" onclick="removeStop(${i})" title="Remove">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>`;
+  }).join('');
+}
+ 
+// ═══════════════════════════════════════════
+//  GPS
+// ═══════════════════════════════════════════
+function fetchGPS() {
+  if (!navigator.geolocation) { toast('Geolocation not supported.', 'error'); return; }
+  const btn = document.getElementById('gpsBtn');
+  btn.classList.add('locating');
+  setStatus('Fetching GPS…');
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      btn.classList.remove('locating');
+      const { latitude: lat, longitude: lng } = pos.coords;
+      addStop(lat, lng, 'My Location (GPS)');
+      map.flyTo([lat, lng], 14, { duration: 1.2 });
+      setStatus('GPS location added');
+      toast('📡 GPS location added as stop.', 'success');
+    },
+    (err) => {
+      btn.classList.remove('locating');
+      setStatus('Ready to plan');
+      toast('GPS unavailable: ' + err.message, 'error');
+    },
+    { timeout: 10000, enableHighAccuracy: true }
+  );
+}
+ 
+// ═══════════════════════════════════════════
+//  GEOCODE + AUTOCOMPLETE
+// ═══════════════════════════════════════════
+let debounce;
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  clearTimeout(debounce);
+  const q = e.target.value.trim();
+  if (q.length < 3) { hideAC(); return; }
+  debounce = setTimeout(() => fetchAC(q), 380);
+});
+document.getElementById('searchInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') searchAddress();
+  if (e.key === 'Escape') hideAC();
+});
+document.addEventListener('click', (e) => { if (!e.target.closest('.search-wrap')) hideAC(); });
+ 
+async function fetchAC(q) {
+  try {
+    const r = await fetch(`${API}/geocode`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({query:q}) });
+    showAC(await r.json());
+  } catch {}
+}
+ 
+function showAC(items) {
+  const el = document.getElementById('autocompleteList');
+  if (!items?.length) { hideAC(); return; }
+  el.innerHTML = items.map((item, i) =>
+    `<div class="autocomplete-item" onclick="selectAC(${i})">
+      <span class="ac-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
+      ${escHtml(item.display_name)}
+    </div>`
+  ).join('');
+  el._data = items;
+  const input = document.getElementById('searchInput');
+  const rect = input.getBoundingClientRect();
+  el.style.top = (rect.bottom + 5) + 'px';
+  el.style.left = rect.left + 'px';
+  el.style.width = rect.width + 'px';
+  el.style.display = 'block';
+}
+function selectAC(i) {
+  const item = document.getElementById('autocompleteList')._data[i];
+  addStop(item.lat, item.lng, item.display_name.split(',')[0]);
+  map.flyTo([item.lat, item.lng], 14);
+  document.getElementById('searchInput').value = '';
+  hideAC();
+}
+function hideAC() { document.getElementById('autocompleteList').style.display = 'none'; }
+async function searchAddress() {
+  const q = document.getElementById('searchInput').value.trim();
+  if (!q) return;
+  try {
+    const r = await fetch(`${API}/geocode`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({query:q}) });
+    const data = await r.json();
+    if (!data.length) { toast('No results found.', 'error'); return; }
+    showAC(data);
+  } catch { toast('Geocoding failed.', 'error'); }
+}
+ 
+// ═══════════════════════════════════════════
+//  LOADING STEPS
+// ═══════════════════════════════════════════
+const STEP_LABELS = [
+  'Geocoding stop locations',
+  'Fetching road distances via OSRM',
+  'Running Dijkstra\'s algorithm',
+  'Optimising stop order (TSP)',
+  'Building route polylines'
+];
+let stepTimer;
+ 
+function startLoadingSteps() {
+  [1,2,3,4,5].forEach(n => {
+    const el = document.getElementById('step'+n);
+    el.className = 'loading-step';
+  });
+  let step = 0;
+  function advance() {
+    if (step > 0) document.getElementById('step'+step).className = 'loading-step done';
+    step++;
+    if (step <= 5) {
+      document.getElementById('step'+step).className = 'loading-step active';
+      document.getElementById('loadingSubText').textContent = STEP_LABELS[step-1];
+      stepTimer = setTimeout(advance, 700 + Math.random()*400);
+    }
+  }
+  advance();
+}
+function stopLoadingSteps() {
+  clearTimeout(stepTimer);
+  [1,2,3,4,5].forEach(n => document.getElementById('step'+n).className = 'loading-step done');
+}
+ 
+// ═══════════════════════════════════════════
+//  CALCULATE ROUTE
+// ═══════════════════════════════════════════
+async function calculateRoute() {
+  if (stops.length < 2) return;
+  setLoading(true);
+  clearRouteLayers();
+  startLoadingSteps();
+  try {
+    const res = await fetch(`${API}/route`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({stops})
+    });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Routing failed'); }
+    const data = await res.json();
+    stopLoadingSteps();
+    // small delay to let "done" state show
+    await new Promise(r => setTimeout(r, 600));
+    setLoading(false);
+    renderRoute(data);
+    showResultScreen(data);
+  } catch (e) {
+    stopLoadingSteps();
+    setLoading(false);
+    toast(e.message, 'error');
+  }
+}
+ 
+// ═══════════════════════════════════════════
+//  DRAW ROUTE ON MAP
+// ═══════════════════════════════════════════
+function renderRoute(data) {
+  clearRouteLayers();
+  data.segments.forEach((seg, i) => {
+    const color = SEG_COLORS[i % SEG_COLORS.length];
+    const line = L.polyline(seg.polyline, {
+      color, weight:5, opacity:0.9, lineCap:'round', lineJoin:'round'
+    }).addTo(map).bindTooltip(
+      `<b>${seg.from_label} → ${seg.to_label}</b><br>${seg.distance_km} km · ${seg.duration_min} min`,
+      { sticky:true, className:'lft-tt' }
+    );
+    const dash = L.polyline(seg.polyline, { color:'#fff', weight:1.5, opacity:0.3, dashArray:'2 12' }).addTo(map);
+    routeLayers.push(line, dash);
+  });
+  const all = data.segments.flatMap(s => s.polyline);
+  if (all.length) map.flyToBounds(L.latLngBounds(all), { padding:[50,50], duration:1.1 });
+}
+ 
+function renderRouteOnResultMap(data) {
+  initResultMap();
+  // clear old layers
+  resultMap.eachLayer(l => { if (!(l instanceof L.TileLayer)) resultMap.removeLayer(l); });
+  data.segments.forEach((seg, i) => {
+    const color = SEG_COLORS[i % SEG_COLORS.length];
+    L.polyline(seg.polyline, { color, weight:4, opacity:0.9, lineCap:'round' }).addTo(resultMap);
+  });
+  data.ordered_stops.forEach((stop, k) => {
+    const isDepot = k === 0;
+    L.marker([stop.lat, stop.lng], { icon: makeIconSmall(stop.order===1?'D':stop.order-1, isDepot) }).addTo(resultMap);
+  });
+  const all = data.segments.flatMap(s => s.polyline);
+  if (all.length) {
+    setTimeout(() => {
+      resultMap.invalidateSize();
+      resultMap.flyToBounds(L.latLngBounds(all), { padding:[30,30], duration:1 });
+    }, 100);
+  }
+}
+ 
+function makeIconSmall(label, isDepot) {
+  const bg = isDepot ? '#4F6EF7' : '#FFFFFF';
+  const fg = isDepot ? '#fff' : '#1E293B';
+  const ring = isDepot ? '#3B55D4' : '#4F6EF7';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="34" viewBox="0 0 26 34">
+    <path d="M13 1C8.03 1 4 5.03 4 10c0 8 9 22 9 22s9-14 9-22C22 5.03 17.97 1 13 1z" fill="${bg}" stroke="${ring}" stroke-width="1.5"/>
+    <text x="13" y="14" text-anchor="middle" font-size="${String(label).length>1?7:9}" font-weight="700" font-family="JetBrains Mono,monospace" fill="${fg}">${label}</text>
+  </svg>`;
+  return L.divIcon({ html:svg, iconSize:[26,34], iconAnchor:[13,34], className:'' });
+}
+ 
+// ═══════════════════════════════════════════
+//  RESULT SCREEN
+// ═══════════════════════════════════════════
+let lastRouteData = null;
+ 
+function showResultScreen(data) {
+  lastRouteData = data;
+  const h = Math.floor(data.total_duration_min / 60);
+  const m = Math.round(data.total_duration_min % 60);
+  const dur = h > 0 ? `${h}h ${m}m` : `${m}m`;
+  const avgSpeed = 40;
+  const n = data.ordered_stops.length;
+ 
+  document.getElementById('resultBarSub').textContent =
+    `${n} stops · ${data.total_distance_km} km · est. ${dur}`;
+ 
+  const manifest = data.ordered_stops.map((s, idx) => {
+    const isLast = idx === n - 1;
+    const seg = data.segments[idx];
+    const cls = idx===0 ? 'm-depot' : isLast ? 'm-last' : 'm-stop';
+    const lbl = idx===0 ? 'D' : isLast ? '✓' : idx;
+    return `<div class="manifest-stop">
+      <div class="m-num ${cls}">${lbl}</div>
+      <div class="m-info">
+        <div class="m-name">${escHtml(s.label)}</div>
+        ${seg ? `<div class="m-pills">
+          <span class="m-pill">${seg.distance_km} km</span>
+          <span class="m-pill">${seg.duration_min} min</span>
+        </div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+ 
+  document.getElementById('resultCol').innerHTML = `
+    <div class="success-banner">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      Route optimised successfully
+    </div>
+    <div class="result-stats-grid">
+      <div class="result-stat-card stat-card-dist">
+        <div class="stat-card-val">${data.total_distance_km}<span class="stat-card-unit">km</span></div>
+        <div class="stat-card-lbl">Total Distance</div>
+      </div>
+      <div class="result-stat-card stat-card-time">
+        <div class="stat-card-val">${dur}</div>
+        <div class="stat-card-lbl">Est. Drive Time</div>
+      </div>
+      <div class="result-stat-card stat-card-stops">
+        <div class="stat-card-val">${n}</div>
+        <div class="stat-card-lbl">Total Stops</div>
+      </div>
+      <div class="result-stat-card stat-card-speed">
+        <div class="stat-card-val">${avgSpeed}<span class="stat-card-unit">km/h</span></div>
+        <div class="stat-card-lbl">Avg Speed</div>
+      </div>
+    </div>
+    <div class="manifest-card">
+      <div class="manifest-header">Route Manifest</div>
+      <div class="manifest-stops">${manifest}</div>
+    </div>
+  `;
+ 
+  document.getElementById('resultScreen').classList.add('active');
+ 
+  // update footer stats
+  document.getElementById('footerDist').textContent = data.total_distance_km;
+  document.getElementById('footerTime').textContent = dur;
+ 
+  renderRouteOnResultMap(data);
+  toast(`✓ ${data.total_distance_km} km route optimised`, 'success');
+  setStatus('Route ready');
+}
+ 
+// ═══════════════════════════════════════════
+//  MAP TOGGLE IN RESULT SCREEN
+// ═══════════════════════════════════════════
+function toggleResultMap() {
+  const col = document.getElementById('resultMapCol');
+  const btn = document.getElementById('mapArrowBtn');
+  const toggleBtn = document.getElementById('mapToggleBtn');
+  mapVisible = !mapVisible;
+  if (mapVisible) {
+    col.classList.remove('collapsed');
+    btn.classList.remove('collapsed');
+    toggleBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> Hide Map`;
+    // resize after transition
+    setTimeout(() => {
+      if (resultMap) resultMap.invalidateSize();
+      if (lastRouteData) {
+        const all = lastRouteData.segments.flatMap(s => s.polyline);
+        if (all.length) resultMap.fitBounds(L.latLngBounds(all), { padding:[30,30] });
+      }
+    }, 450);
+  } else {
+    col.classList.add('collapsed');
+    btn.classList.add('collapsed');
+    toggleBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> Show Map`;
+  }
+}
+ 
+function closeResults() {
+  document.getElementById('resultScreen').classList.remove('active');
+  mapVisible = false;
+  document.getElementById('resultMapCol').classList.add('collapsed');
+  document.getElementById('mapArrowBtn').classList.add('collapsed');
+  document.getElementById('mapToggleBtn').innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> Show Map`;
+}
+ 
+// ═══════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════
+function resetAll() {
+  stops = [];
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+  clearRouteLayers();
+  renderStopList();
+  updateUI();
+  clearResults();
+  closeResults();
+  document.getElementById('footerDist').textContent = '—';
+  document.getElementById('footerTime').textContent = '—';
+  lastRouteData = null;
+  toast('Everything reset.', 'success');
+  setStatus('Ready to plan');
+}
+ 
+function clearStops() {
+  stops = [];
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+  clearRouteLayers();
+  renderStopList();
+  updateUI();
+  clearResults();
+  closeResults();
+}
+ 
+function clearRouteLayers() { routeLayers.forEach(l => map.removeLayer(l)); routeLayers = []; }
+function clearResults() { /* result screen closed separately */ }
+ 
+function updateUI() {
+  document.getElementById('routeBtn').disabled = stops.length < 2;
+  document.getElementById('stopFill').style.width = `${(stops.length/12)*100}%`;
+  document.getElementById('footerStops').textContent = stops.length;
+  if (stops.length === 0) setStatus('Ready to plan');
+  else if (stops.length === 1) setStatus('Add more stops');
+  else setStatus(`${stops.length} stops ready`);
+}
+ 
+function setLoading(on) {
+  document.getElementById('loadingOverlay').classList.toggle('active', on);
+  document.getElementById('routeBtn').disabled = on || stops.length < 2;
+}
+ 
+function setStatus(msg) {
+  document.getElementById('topbarStatus').textContent = msg;
+}
+ 
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+ 
+function toast(msg, type='') {
+  const wrap = document.getElementById('toastWrap');
+  const icon = type==='success' ? '✓' : type==='error' ? '✕' : 'i';
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span class="t-icon">${icon}</span><span>${escHtml(msg)}</span>`;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 3800);
+}
+ 
+// Init
+initMap();
+</script>
+</body>
+</html>
